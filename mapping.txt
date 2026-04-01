@@ -1,0 +1,104 @@
+[01] doc_id=1 | 식품위생법 제36조1항
+      hits: ["docid-8590__dumpdate-20231128___jo-50"]
+[02] doc_id=2 | 아동·청소년의성보호에관한법률 제21조1항
+      hits: ["docid-9874__dumpdate-20231128___jo-23"]
+[03] doc_id=3 | 상표법 제6조1항
+      hits: ["docid-3191__dumpdate-20231128___jo-5"]
+[04] doc_id=4 | 형법 제360조1항
+      hits: ['docid-11476__dumpdate-20231128___jo-385']
+[05] doc_id=5 | 형법 제261조
+      hits: ['docid-11476__dumpdate-20231128___jo-271']
+[06] doc_id=6 | 민사소송법 제98조
+      hits: ["docid-9908__dumpdate-20231128___jo-98"]
+[07] doc_id=7 | 민법 제245조
+      hits: ["docid-10809__dumpdate-20231128___jo-248"]
+[08] doc_id=8 | 형법 제307조1항
+      hits: ['docid-11476__dumpdate-20231128___jo-323']
+[09] doc_id=9 | 마약류관리에관한법률 제2조
+      hits: ["docid-5319__dumpdate-20231128___jo-1"]
+[10] doc_id=10 | 민법 제387조
+      hits: ['docid-10809__dumpdate-20231128___jo-392']
+[11] doc_id=11 | 형법 제53조
+      hits: ['docid-11476__dumpdate-20231128___jo-52']
+[12] doc_id=12 | 주민등록법 제37조
+      hits: ["docid-10305__dumpdate-20231128___jo-52"]
+[13] doc_id=13 | 집합건물의소유및관리에관한법률 제23조
+      hits: ["docid-9882__dumpdate-20231128___jo-28"]
+[14] doc_id=14 | 자동차손해배상보장법 제8조
+      hits: ["docid-10757__dumpdate-20231128___jo-8"]
+[15] doc_id=15 | 형법 제232-2조
+      hits: ["docid-11476__dumpdate-20231128___jo-240"]
+[16] doc_id=16 | 폐기물관리법 제25조1항
+      hits: ["docid-3044__dumpdate-20231128___jo-43"]
+[17] doc_id=17 | 성폭력범죄의처벌등에관한특례법 제8조
+      hits: ["docid-11377__dumpdate-20231128___jo-7"]
+[18] doc_id=18 | 도로교통법 제152조
+      hits: ['docid-12010__dumpdate-20231128___jo-183']
+[19] doc_id=19 | 민사소송법 제202-2조
+      hits: ["docid-9908__dumpdate-20231128___jo-212"]
+[20] doc_id=20 | 자동차관리법 제71조1항
+      hits: ["docid-10022__dumpdate-20231128___jo-155"]
+[21] doc_id=21 | 형사소송법 제361-3조
+      hits: ["docid-5653__dumpdate-20231128___jo-468"]
+[22] doc_id=22 | 형법 제258조
+      hits: ["docid-11476__dumpdate-20231128___jo-267"]
+[23] doc_id=23 | 특정범죄가중처벌등에관한법률 제8-2조 1항
+      hits: ["docid-11022__dumpdate-20231128___jo-22"]
+[24] doc_id=24 | 형사소송법 제254조
+      hits: ["docid-5653__dumpdate-20231128___jo-308"]
+[25] doc_id=25 | 근로기준법 제36조
+      hits: ['docid-4001__dumpdate-20231128___jo-35']
+[26] doc_id=26 | 도시및주거환경정비법 제39조3항
+      hits: ["docid-11255__dumpdate-20231128___jo-41"]
+[27] doc_id=27 | 민법 제1008조
+      hits: ["docid-10809__dumpdate-20231128___jo-1078"]
+[28] doc_id=28 | 민법 제110조
+      hits: ["docid-10809__dumpdate-20231128___jo-113"]
+[29] doc_id=29 | 민사소송법 제451조1항
+      hits: ['docid-9908__dumpdate-20231128___jo-469']
+[30] doc_id=30 | 형법 제52조
+      hits: ['docid-11476__dumpdate-20231128___jo-51']
+[31] doc_id=31 | 보조금관리에관한법률 제40조
+      hits: ["docid-6020__dumpdate-20231128___jo-58"]
+[32] doc_id=32 | 성매매알선등행위의처벌에관한법률 제21조
+      hits: ["docid-1516__dumpdate-20231128___jo-20"]
+[33] doc_id=33 | 민법 제320조
+      hits: ['docid-10809__dumpdate-20231128___jo-325']
+[34] doc_id=34 | 형법 제357조1항
+      hits: ['docid-11476__dumpdate-20231128___jo-382']
+[35] doc_id=35 | 형사소송법 제364조2항
+      hits: ["docid-5653__dumpdate-20231128___jo-473"]
+[36] doc_id=36 | 공인중개사법 제30조
+      hits: ["docid-10791__dumpdate-20231128___jo-40"]
+[37] doc_id=37 | 저작권법 제136조1항
+      hits: ["docid-9962__dumpdate-20231128___jo-188"]
+[38] doc_id=38 | 형법 제37조
+      hits: ['docid-11476__dumpdate-20231128___jo-36']
+[39] doc_id=39 | 형법 제301조
+      hits: ["docid-11476__dumpdate-20231128___jo-314"]
+[40] doc_id=40 | 근로기준법 제109조1항
+      hits: ['docid-4001__dumpdate-20231128___jo-118']
+[41] doc_id=41 | 국민체육진흥법 제51조1항
+      hits: ['docid-11077__dumpdate-20231128___jo-92']
+[42] doc_id=42 | 근로자퇴직급여보장법 제44조
+      hits: ["docid-4217__dumpdate-20231128___jo-63"]
+[43] doc_id=43 | 형법 제214조1항
+      hits: ["docid-11476__dumpdate-20231128___jo-220"]
+[44] doc_id=44 | 부동산실권리자명의등기에관한법률 제4조
+      hits: ["docid-5310__dumpdate-20231128___jo-3"]
+[45] doc_id=45 | 형법 제35조
+      hits: ["docid-11476__dumpdate-20231128___jo-34"]
+[46] doc_id=46 | 형법 제297조
+      hits: ['docid-11476__dumpdate-20231128___jo-309']
+[47] doc_id=47 | 형법 제62조1항
+      hits: ['docid-11476__dumpdate-20231128___jo-62']
+[48] doc_id=48 | 도로교통법 제44조1항
+      hits: ["docid-12010__dumpdate-20231128___jo-56"]
+[49] doc_id=49 | 근로기준법 제23조
+      hits: ["docid-4001__dumpdate-20231128___jo-22"]
+[50] doc_id=50 | 형사소송법 제333조
+      hits: ["docid-5653__dumpdate-20231128___jo-438"]
+[51] doc_id=51 | 근로기준법 제110조
+      hits: ["docid-4001__dumpdate-20231128___jo-119"]
+[52] doc_id=52 | 근로기준법 제114조
+      hits: ["docid-4001__dumpdate-20231128___jo-123"]

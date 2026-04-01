@@ -13,3 +13,7 @@
 /data/국세청_판례_TEXT
 /data/대법원_판례_TEXT_FINAL
 data/*/
+*.csv
+*.png
+*.html
+.DS_Store

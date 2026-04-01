@@ -1,0 +1,124 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "language": "Korean",
+    "domain": "Legal",
+    "description": "Comprehensive Korean legal stopwords list",
+    "last_updated": "2026-03"
+  },
+  "stopwords": {
+    "particles": {
+      "subject_markers": ["이", "가", "께서", "에서", "서"],
+      "object_markers": ["을", "를"],
+      "topic_markers": ["은", "는"],
+      "possessive": ["의"],
+      "location_direction": ["에", "에게", "에서", "로", "으로", "부터", "까지", "한테", "께"],
+      "conjunction": ["와", "과", "하고", "랑", "이랑"],
+      "auxiliary": ["도", "만", "마저", "조차", "밖에"],
+      "comparison": ["보다"]
+    },
+    "pronouns": {
+      "personal": ["나", "내", "저", "제", "너", "네", "그", "그녀", "우리", "저희", "너희", "당신", "그들"],
+      "demonstrative": ["이", "그", "저", "이것", "그것", "저것", "여기", "거기", "저기", "이곳", "그곳", "저곳"]
+    },
+    "conjunctive_adverbs": [
+      "그리고", "및", "그러나", "하지만", "그런데", "근데", "그래서", 
+      "따라서", "또한", "또", "그렇지만", "그러므로", "그런즉", "즉", 
+      "곧", "또는", "혹은"
+    ],
+    "common_adverbs": {
+      "degree": ["매우", "너무", "정말", "참", "아주", "무척", "몹시", "조금", "좀", "약간", "거의", "대략"],
+      "frequency": ["항상", "늘", "언제나", "가끔", "때때로"],
+      "possibility": ["아마", "어쩌면"]
+    },
+    "auxiliary_verbs": [
+      "이다", "아니다", "되다", "안되다", "있다", "없다", "하다"
+    ],
+    "functional_words": [
+      "수", "것", "등", "등등", "때문", "까닭", "경우", "바", "대로", "듯", "지"
+    ],
+    "legal_boilerplate": {
+      "conditional": ["다만", "단", "제외하고"],
+      "relational": ["있어서", "관하여", "대하여", "의하여", "따라", "관한", "대한", "의한"],
+      "others": ["기타", "외에"]
+    }
+  },
+  "legal_terms_to_keep": {
+    "core_legal": [
+      "법", "법률", "법령", "규정", "조례", "시행령", "시행규칙",
+      "조", "항", "호", "목",
+      "권리", "의무",
+      "당사자", "피고", "원고", "피의자", "피해자",
+      "판사", "검사", "변호사",
+      "법원", "대법원", "고등법원", "지방법원",
+      "소송", "재판", "판결", "결정", "명령",
+      "증거", "증인", "증명",
+      "계약", "합의",
+      "위반", "처벌", "형벌", "벌금"
+    ],
+    "legal_actions": [
+      "제소", "고소", "고발", "항소", "상고", "공소", "기소",
+      "선고", "판시", "인정", "부인", "주장", "입증"
+    ],
+    "rights_obligations": [
+      "소유권", "점유권", "지분권", "용익권",
+      "채권", "채무", "손해배상", "보상"
+    ],
+    "article_indicators": [
+      "제", "조", "항", "호", "목", "편", "장", "절", "관"
+    ]
+  },
+  "combined_lists": {
+    "all_particles_flat": [
+      "이", "가", "께서", "에서", "서", "을", "를", "은", "는", "의",
+      "에", "에게", "로", "으로", "부터", "까지", "한테", "께",
+      "와", "과", "하고", "랑", "이랑", "도", "만", "마저", "조차", "밖에", "보다"
+    ],
+    "high_confidence_stopwords": [
+      "그", "그녀", "나", "너", "저", "저희", "너희", "이", "그것", "저것",
+      "이것", "여기", "거기", "저기", "매우", "너무", "정말", "아주",
+      "조금", "좀", "거의", "아마", "항상", "가끔", "것", "수"
+    ],
+    "medium_confidence_stopwords": [
+      "등", "등등", "때문", "까닭", "경우", "바", "대로", "및", "또한", "또"
+    ]
+  },
+  "pos_tags_to_remove": {
+    "konlpy_tags": {
+      "description": "Part-of-speech tags that typically indicate stopwords",
+      "tags": ["Josa", "Eomi", "Suffix"],
+      "note": "When using morphological analyzer, filter by POS tags instead of word lists"
+    },
+    "mecab_tags": {
+      "description": "Mecab-specific tags for particles",
+      "tags": [
+        "JKS", "JKC", "JKG", "JKO", "JKB", "JKV", "JKQ", "JX", "JC",
+        "EP", "EF", "EC", "ETN", "ETM",
+        "XSN", "XSV", "XSA"
+      ],
+      "note": "JK* = particles, E* = endings, XS* = suffixes"
+    }
+  },
+  "usage_examples": {
+    "python_simple": [
+      "# Load stopwords",
+      "import json",
+      "with open('korean_legal_stopwords.json', 'r', encoding='utf-8') as f:",
+      "    data = json.load(f)",
+      "    stopwords = data['combined_lists']['all_particles_flat']"
+    ],
+    "python_with_konlpy": [
+      "from konlpy.tag import Okt",
+      "okt = Okt()",
+      "text = '피고는 원고에게 손해배상을 하여야 한다'",
+      "tokens = [word for word in okt.morphs(text) if word not in stopwords]"
+    ]
+  },
+  "notes": {
+    "morphological_analysis": "Always perform morphological analysis before stopword removal for Korean text",
+    "customization": "Customize this list based on your specific legal domain and corpus",
+    "frequency_based": "Consider adding high-frequency words from your specific corpus",
+    "legal_terms": "Be careful not to remove domain-specific legal terminology",
+    "context_matters": "Some words may be stopwords in one context but important in another"
+  }
+}
