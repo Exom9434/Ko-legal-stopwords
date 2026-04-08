@@ -61,92 +61,86 @@ def _load_ngram_list(path: str) -> list:
         return [line.strip() for line in f if line.strip()]
 
 def build_stopword_configs(base_dir: str) -> dict:
+    # 기초 불용어 로드
     kil = load_stopwords_txt(os.path.join(base_dir, "stopwords_kil(2018).txt"))
     gen = load_stopwords_txt(os.path.join(base_dir, "stopwords.txt"))
     
-    # 1. 법령 불용어 CSV 로드
-    stat_dir_law = os.path.join(base_dir, "stopword_법령")
-    law_a = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_A_zipf.csv"))
-    law_b = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_B_tfidf.csv"))
-    law_c = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_C_entropy.csv"))
-    law_d = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_D_pos.csv"))
-    law_e = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_E_intersection.csv"))
-    
-    # 2. 판례 불용어 CSV 로드
+    # 1. 판례 불용어 CSV 로드 (법령은 필요 시 로드만 하고 사용처 분리 가능)
     stat_dir_case = os.path.join(base_dir, "stopword_판례")
     case_a = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_A_zipf.csv"))
-    case_b = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_B_tfidf.csv"))
-    case_c = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_C_entropy.csv"))
-    case_d = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_D_pos.csv"))
+    case_b = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_B_entropy.csv"))
+    case_c = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_C_mpvp.csv"))
+    case_d = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_D_union.csv"))
     case_e = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_E_intersection.csv"))
     
-    # 3. N-gram 로드
-    ngram_law = _load_ngram_list(os.path.join(base_dir, "stopwords_ngram_법령.txt"))
+    # 2. 판례 N-gram 로드
     ngram_case = _load_ngram_list(os.path.join(base_dir, "stopwords_ngram_판례.txt"))
 
-    return {
-        # ==========================================
-        # [그룹 0] 기초 베이스라인 (통제군)
-        # ==========================================
-        "00. Baseline (No SW)": {"words": set(), "ngrams": []},
-        "01. General (SW)":     {"words": gen, "ngrams": []},
-        "02. KIL Only":         {"words": kil, "ngrams": []},
-        
-        # ==========================================
-        # [그룹 1] N-gram 단독 효과 검증
-        # KIL 없이 순수하게 N-gram 구문만 제거했을 때의 효과
-        # ==========================================
-        "03. Baseline + 법령ngram": {"words": set(), "ngrams": ngram_law},
-        "04. Baseline + 판례ngram": {"words": set(), "ngrams": ngram_case},
+    cfgs = {}
 
-        # ==========================================
-        # [그룹 2] 도메인 불용어 단독 효과 검증
-        # KIL 없이 순수하게 도메인 단어만 제거했을 때의 효과
-        # ==========================================
-        "05. Baseline + 법령A": {"words": law_a, "ngrams": []},
-        "06. Baseline + 법령B": {"words": law_b, "ngrams": []},
-        "07. Baseline + 법령C": {"words": law_c, "ngrams": []},
-        "08. Baseline + 법령D": {"words": law_d, "ngrams": []},
-        "09. Baseline + 법령E": {"words": law_e, "ngrams": []},
-        
-        "10. Baseline + 판례A": {"words": case_a, "ngrams": []},
-        "11. Baseline + 판례B": {"words": case_b, "ngrams": []},
-        "12. Baseline + 판례C": {"words": case_c, "ngrams": []},
-        "13. Baseline + 판례D": {"words": case_d, "ngrams": []},
-        "14. Baseline + 판례E": {"words": case_e, "ngrams": []},
+    # ==========================================
+    # [그룹 0-1] 기초 및 N-gram 단독 효과 (00-07)
+    # ==========================================
+    cfgs["00. Baseline (No SW)"] = {"words": set(), "ngrams": []}
+    cfgs["01. General (SW)"]     = {"words": gen, "ngrams": []}
+    cfgs["02. KIL Only"]         = {"words": kil, "ngrams": []}
+    cfgs["03. Baseline + 판례ngram-050"] = {"words": set(), "ngrams": ngram_case[:50]}
+    cfgs["04. Baseline + 판례ngram-100"] = {"words": set(), "ngrams": ngram_case[:100]}
+    cfgs["05. Baseline + 판례ngram-150"] = {"words": set(), "ngrams": ngram_case[:150]}
+    cfgs["06. Baseline + 판례ngram-200"] = {"words": set(), "ngrams": ngram_case[:200]}
+    cfgs["07. Baseline + 판례ngram-all"] = {"words": set(), "ngrams": ngram_case}
 
-        # ==========================================
-        # [그룹 3] 기존 실험군: KIL + 도메인 불용어 결합 효과
-        # ==========================================
-        "15. KIL + 법령A": {"words": kil | law_a, "ngrams": []},
-        "16. KIL + 법령B": {"words": kil | law_b, "ngrams": []},
-        "17. KIL + 법령C": {"words": kil | law_c, "ngrams": []},
-        "18. KIL + 법령D": {"words": kil | law_d, "ngrams": []},
-        "19. KIL + 법령E": {"words": kil | law_e, "ngrams": []},
-        
-        "20. KIL + 판례A": {"words": kil | case_a, "ngrams": []},
-        "21. KIL + 판례B": {"words": kil | case_b, "ngrams": []},
-        "22. KIL + 판례C": {"words": kil | case_c, "ngrams": []},
-        "23. KIL + 판례D": {"words": kil | case_d, "ngrams": []},
-        "24. KIL + 판례E": {"words": kil | case_e, "ngrams": []},
+    # ==========================================
+    # [그룹 2-3] 판례 불용어 단독 및 KIL 결합 (08-17)
+    # ==========================================
+    cases = {"A": case_a, "B": case_b, "C": case_c, "D": case_d, "E": case_e}
+    for char, sw_set in cases.items():
+        cfgs[f"08-{char}. Baseline + 판례{char}"] = {"words": sw_set, "ngrams": []}
+    for char, sw_set in cases.items():
+        cfgs[f"13-{char}. KIL + 판례{char}"]      = {"words": kil | sw_set, "ngrams": []}
 
-        # ==========================================
-        # [그룹 4] 기존 실험군: KIL + N-gram 결합 효과
-        # ==========================================
-        "25. KIL + 법령ngram": {"words": kil, "ngrams": ngram_law},
-        "26. KIL + 판례ngram": {"words": kil, "ngrams": ngram_case},
+    # ==========================================
+    # [그룹 4-5] KIL/Baseline + N-gram 풀조합 (18-28)
+    # ==========================================
+    cfgs["18. KIL + 판례ngram"] = {"words": kil, "ngrams": ngram_case}
+    for char, sw_set in cases.items():
+        cfgs[f"19-{char}. Baseline + 판례{char} + 판례ngram"] = {"words": sw_set, "ngrams": ngram_case}
+    for char, sw_set in cases.items():
+        cfgs[f"24-{char}. KIL + 판례{char} + 판례ngram"]      = {"words": kil | sw_set, "ngrams": ngram_case}
 
-        # ==========================================
-        # [그룹 5] 풀세트(E+ngram) 조합 비교
-        # Baseline 베이스 vs KIL 베이스
-        # ==========================================
-        "27. Baseline + 법령E + 법령ngram": {"words": law_e, "ngrams": ngram_law},
-        "28. Baseline + 판례E + 판례ngram": {"words": case_e, "ngrams": ngram_case},
-        
-        "29. KIL + 법령E + 법령ngram": {"words": kil | law_e, "ngrams": ngram_law},
-        "30. KIL + 판례E + 판례ngram": {"words": kil | case_e, "ngrams": ngram_case},
-    }
+    # ==========================================
+    # [그룹 6-7] General SW 기반 대조군 (29-38)
+    # ==========================================
+    for char, sw_set in cases.items():
+        cfgs[f"29-{char}. General + 판례{char}"] = {"words": gen | sw_set, "ngrams": []}
+    for char, sw_set in cases.items():
+        cfgs[f"34-{char}. General + 판례{char} + 판례ngram"] = {"words": gen | sw_set, "ngrams": ngram_case}
 
+    # ==========================================
+    # [그룹 8] KIL + N-gram 크기별 정밀 분석 (39-42)
+    # ==========================================
+    cfgs["39. KIL + 판례ngram-050"] = {"words": kil, "ngrams": ngram_case[:50]}
+    cfgs["40. KIL + 판례ngram-100"] = {"words": kil, "ngrams": ngram_case[:100]}
+    cfgs["41. KIL + 판례ngram-150"] = {"words": kil, "ngrams": ngram_case[:150]}
+    cfgs["42. KIL + 판례ngram-200"] = {"words": kil, "ngrams": ngram_case[:200]}
+
+    # ==========================================
+    # [그룹 9] Baseline + 판례E + N-gram 크기별 (43-46)
+    # ==========================================
+    cfgs["43. Baseline + 판례E + 판례ngram-050"] = {"words": case_e, "ngrams": ngram_case[:50]}
+    cfgs["44. Baseline + 판례E + 판례ngram-100"] = {"words": case_e, "ngrams": ngram_case[:100]}
+    cfgs["45. Baseline + 판례E + 판례ngram-150"] = {"words": case_e, "ngrams": ngram_case[:150]}
+    cfgs["46. Baseline + 판례E + 판례ngram-200"] = {"words": case_e, "ngrams": ngram_case[:200]}
+
+    # ==========================================
+    # [그룹 10] General + N-gram 크기별 (47-50)
+    # ==========================================
+    cfgs["47. General + 판례ngram-050"] = {"words": gen, "ngrams": ngram_case[:50]}
+    cfgs["48. General + 판례ngram-100"] = {"words": gen, "ngrams": ngram_case[:100]}
+    cfgs["49. General + 판례ngram-150"] = {"words": gen, "ngrams": ngram_case[:150]}
+    cfgs["50. General + 판례ngram-200"] = {"words": gen, "ngrams": ngram_case[:200]}
+
+    return cfgs
 # =============================================================================
 # [Part 3] Case Relevance 전용 로더 (중요 수정 포인트)
 # =============================================================================
@@ -283,7 +277,7 @@ def run_benchmark(task_file, task_display_name, configs):
         
     # 결과 저장
     df = pd.DataFrame(results).sort_values("MRR@10", ascending=False)
-    df.to_csv(os.path.join(BASE_DIR, f"result_bm25_{task_display_name}.csv"), index=False, encoding="utf-8-sig")
+    df.to_csv(os.path.join(BASE_DIR, f"06.result_bm25_{task_display_name}.csv"), index=False, encoding="utf-8-sig")
 
 def main():
     # 1. 설정 로드

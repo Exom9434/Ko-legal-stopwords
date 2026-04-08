@@ -4,8 +4,9 @@
 개선된 kNN Purity + t-SNE 벤치마크 (Ablation Study)
 ===================================================
 1. 법령과 판례의 평가 지표 통일 (법역 Purity 중심 1:1 비교)
-2. 교차 검증(Cross-domain)이 포함된 체계적인 설정(Configs)
-3. 최종 결과를 하나의 통합된 비교 표로 출력
+2. 도메인별 독립 설정 (크로스 없음)
+3. BM25와 동일한 Ablation 경우의 수 (ngram only, General+ngram 등)
+4. 최종 결과를 하나의 통합된 비교 표로 출력
 """
 from konlpy.tag import Mecab
 import os, re, json, random, warnings
@@ -41,8 +42,8 @@ K_VALUES    = [5, 10, 20]
 N_SAMPLE    = 300
 RANDOM_SEED = 42
 
-# t-SNE는 Base(NONE)와 최종(Ngram 포함) 형태만 비교하여 Ablation 효과 극대화
-TSNE_CONFIGS = ["1_NONE", "5_KIL+법령E+Ngram", "5_KIL+판례E+Ngram"]
+# t-SNE 시각화 대상: Baseline → KIL → KIL+E → KIL+E+ngram 흐름으로 Ablation 효과 극대화
+TSNE_CONFIGS = ["00. Baseline", "02. KIL", "07. KIL + E", "11. KIL + E + ngram"]
 
 def _setup_font():
     for font in ["NanumGothic", "AppleGothic", "Malgun Gothic", "NanumBarunGothic"]:
@@ -89,45 +90,87 @@ def plot_tsne(token_lists, labels, config_name, domain, out_dir):
         print(f"      ⚠️ t-SNE 에러 ({config_name}): {e}")
 
 # =============================================================================
-# [개선] A, B, C, D, E 모든 경우의 수를 포함한 Config 빌더
+# [개선] 도메인별 독립 Config 빌더 (크로스 없음, BM25와 동일한 Ablation 구조)
 # =============================================================================
-def build_full_ablation_configs(base_dir: str) -> dict:
+def build_configs_for_domain(base_dir: str, domain: str) -> dict:
+    """
+    domain: '법령' or '판례'
+    BM25 전수조사 버전과 동일한 51개 내외의 실험군 생성
+    """
     kil = _load_txt(os.path.join(base_dir, "stopwords_kil(2018).txt"))
     gen = _load_txt(os.path.join(base_dir, "stopwords.txt"))
-    
-    configs = {
-        "0_NONE":    {"words": set(), "ngrams": []},
-        "1_GENERAL": {"words": gen, "ngrams": []},
-        "2_KIL":     {"words": kil, "ngrams": []},
+
+    stat_dir   = os.path.join(base_dir, f"stopword_{domain}")
+    ngram_path = os.path.join(base_dir, f"stopwords_ngram_{domain}.txt")
+    ngrams_all = _load_ngram_list(ngram_path)
+
+    # 도메인별 불용어 세트 로드 (A~E)
+    CANDIDATES = {
+        "A": "candidates_A_zipf.csv",
+        "B": "candidates_B_entropy.csv",
+        "C": "candidates_C_mpvp.csv",
+        "D": "candidates_D_union.csv",
+        "E": "candidates_E_intersection.csv",
     }
+    word_sets = {}
+    for char, fname in CANDIDATES.items():
+        path = os.path.join(stat_dir, fname)
+        word_sets[char] = _load_csv_words(path)
 
-    # 도메인별 A~E 후보군 로드 루프
-    for domain in ["법령", "판례"]:
-        stat_dir = os.path.join(base_dir, f"stopword_{domain}")
-        ngram_path = os.path.join(base_dir, f"stopwords_ngram_{domain}.txt")
-        ngrams = _load_ngram_list(ngram_path)
-        
-        # A: Zipf, B: TF-IDF, C: Entropy, D: POS-Skew, E: Intersection
-        targets = {
-            "A": "candidates_A_zipf.csv",
-            "B": "candidates_B_tfidf.csv", # 추가
-            "C": "candidates_C_entropy.csv", # 추가
-            "D": "candidates_D_skew.csv",    # 추가
-            "E": "candidates_E_intersection.csv"
-        }
+    cfgs = {}
 
-        for char, filename in targets.items():
-            path = os.path.join(stat_dir, filename)
-            if os.path.exists(path):
-                words = _load_csv_words(path)
-                # 기본 KIL + 도메인 특화 단어 조합
-                configs[f"3_{domain}_{char}"] = {"words": kil | words, "ngrams": []}
-                
-                # 최상위 조합 (단어 E + Ngram) 예시 - 가장 성능이 좋을 것으로 기대되는 조합
-                if char == "E" and ngrams:
-                    configs[f"4_{domain}_E+Ngram"] = {"words": kil | words, "ngrams": ngrams}
+    # ==========================================
+    # [그룹 0-1] 기초 및 N-gram 단독 효과 (00-07)
+    # ==========================================
+    cfgs["00. Baseline (No SW)"] = {"words": set(), "ngrams": []}
+    cfgs["01. General (SW)"]     = {"words": gen,   "ngrams": []}
+    cfgs["02. KIL Only"]         = {"words": kil,   "ngrams": []}
+    cfgs["03. Baseline + ngram-050"] = {"words": set(), "ngrams": ngrams_all[:50]}
+    cfgs["04. Baseline + ngram-100"] = {"words": set(), "ngrams": ngrams_all[:100]}
+    cfgs["05. Baseline + ngram-150"] = {"words": set(), "ngrams": ngrams_all[:150]}
+    cfgs["06. Baseline + ngram-200"] = {"words": set(), "ngrams": ngrams_all[:200]}
+    cfgs["07. Baseline + ngram-all"] = {"words": set(), "ngrams": ngrams_all}
 
-    return configs
+    # ==========================================
+    # [그룹 2-3] 도메인 불용어 단독 및 KIL 결합 (08-17)
+    # ==========================================
+    for char, sw_set in word_sets.items():
+        cfgs[f"08-{char}. Baseline + {domain}{char}"] = {"words": sw_set, "ngrams": []}
+    for char, sw_set in word_sets.items():
+        cfgs[f"13-{char}. KIL + {domain}{char}"]      = {"words": kil | sw_set, "ngrams": []}
+
+    # ==========================================
+    # [그룹 4-5] KIL/Baseline + N-gram 풀조합 (18-28)
+    # ==========================================
+    cfgs[f"18. KIL + {domain}ngram"] = {"words": kil, "ngrams": ngrams_all}
+    for char, sw_set in word_sets.items():
+        cfgs[f"19-{char}. Baseline + {domain}{char} + ngram"] = {"words": sw_set, "ngrams": ngrams_all}
+    for char, sw_set in word_sets.items():
+        cfgs[f"24-{char}. KIL + {domain}{char} + ngram"]      = {"words": kil | sw_set, "ngrams": ngrams_all}
+
+    # ==========================================
+    # [그룹 6-7] General SW 기반 대조군 (29-38)
+    # ==========================================
+    for char, sw_set in word_sets.items():
+        cfgs[f"29-{char}. General + {domain}{char}"] = {"words": gen | sw_set, "ngrams": []}
+    for char, sw_set in word_sets.items():
+        cfgs[f"34-{char}. General + {domain}{char} + ngram"] = {"words": gen | sw_set, "ngrams": ngrams_all}
+
+    # ==========================================
+    # [그룹 8-10] 크기별 정밀 분석 (39-50)
+    # ==========================================
+    sizes = [50, 100, 150, 200]
+    # KIL 기반
+    for i, n in enumerate(sizes):
+        cfgs[f"{39+i:02d}. KIL + ngram-{n:03d}"] = {"words": kil, "ngrams": ngrams_all[:n]}
+    # Baseline + E 기반
+    for i, n in enumerate(sizes):
+        cfgs[f"{43+i:02d}. Baseline + {domain}E + ngram-{n:03d}"] = {"words": word_sets.get("E", set()), "ngrams": ngrams_all[:n]}
+    # General 기반
+    for i, n in enumerate(sizes):
+        cfgs[f"{47+i:02d}. General + ngram-{n:03d}"] = {"words": gen, "ngrams": ngrams_all[:n]}
+
+    return cfgs
 
 # =============================================================================
 # 텍스트 전처리 및 데이터 로더 (기존 로직 유지하되 간결화)
@@ -237,35 +280,82 @@ def plot_tsne(token_lists, labels, config_name, domain, out_dir):
 # [복구] t-SNE 시각화 핵심 로직
 # =============================================================================
 def run_enhanced_benchmark(dataset_name, df, configs):
+    """
+    dataset_name: '법령' or '판례'
+    configs: build_configs_for_domain()로 만든 도메인 전용 설정 (크로스 없음)
+    """
     sample = balanced_sample(df, "법역", N_SAMPLE, RANDOM_SEED)
     labels = sample["법역"].values
     law_labels = sample["법령명"].values if "법령명" in sample.columns else None
 
-    # 시각화 대상 설정 (Ablation의 극적인 변화를 보여줄 포인트)
-    # 0_NONE(기본), 2_KIL(기준), 3_도메인_E(단어 최적), 4_도메인_E+Ngram(최종)
-    target_viz = ["0_NONE", "2_KIL", f"3_{dataset_name}_E", f"4_{dataset_name}_E+Ngram"]
-
     results = []
     for name in sorted(configs.keys()):
         config = configs[name]
-        
-        # 해당 도메인 실험이 아니면 스킵 (법령 테스트 시 판례 설정 제외 등)
-        if dataset_name == "법령" and "판례_" in name: continue
-        if dataset_name == "판례" and "법령_" in name: continue
 
         token_lists = [preprocess(row["text"], config) for _, row in sample.iterrows()]
-        
-        # Jaccard 및 Purity 계산
+
         sim = jaccard_matrix(token_lists)
-        res = {"설정": name}
-        res["P@10"] = round(knn_purity(sim, labels, 10), 4)
+        res = {"설정": name, "P@5":  round(knn_purity(sim, labels, 5),  4),
+                              "P@10": round(knn_purity(sim, labels, 10), 4),
+                              "P@20": round(knn_purity(sim, labels, 20), 4)}
         if law_labels is not None:
-            res["Detail_P@10"] = round(knn_purity(sim, law_labels, 10), 4)
+            res["법령_P@10"] = round(knn_purity(sim, law_labels, 10), 4)
         results.append(res)
 
-        # --- t-SNE 시각화 실행부 복구 ---
-        if any(target in name for target in target_viz):
+        # t-SNE: Baseline → KIL → KIL+E → KIL+E+ngram 흐름
+        if any(name.startswith(t) for t in TSNE_CONFIGS):
             print(f"    [t-SNE] {dataset_name} - {name} 시각화 생성 중...")
             plot_tsne(token_lists, list(labels), name, dataset_name, TSNE_DIR)
 
     return pd.DataFrame(results)
+
+
+# =============================================================================
+# 메인 실행
+# =============================================================================
+if __name__ == "__main__":
+    _setup_font()
+    pd.options.display.float_format = '{:.4f}'.format
+    print("=" * 60)
+    print("  kNN Purity Ablation Study")
+    print("=" * 60)
+
+    # ── 법령 벤치마크 ──────────────────────────────────────────
+    print("\n[1/2] 법령 데이터 로드 중...")
+    law_df = load_law_data()
+    print(f"  → {len(law_df):,}개 조문 로드 완료")
+
+    law_configs = build_configs_for_domain(BASE_DIR, "법령")
+    print(f"  → 설정 {len(law_configs)}개: {list(law_configs.keys())}\n")
+
+    print("  법령 kNN Purity 계산 중...")
+    law_results = run_enhanced_benchmark("법령", law_df, law_configs)
+
+    print("\n" + "=" * 65)
+    print(f"  {'설정':<28} | P@5    P@10   P@20")
+    print("=" * 65)
+    for _, row in law_results.iterrows():
+        print(f"  {row['설정']:<28} | {row['P@5']:.4f} {row['P@10']:.4f} {row['P@20']:.4f}")
+
+    law_results.to_csv(os.path.join(BASE_DIR, "07.benchmark_knn_법령.csv"), index=False, encoding="utf-8-sig")
+
+    # ── 판례 벤치마크 ──────────────────────────────────────────
+    print("\n\n[2/2] 판례 데이터 로드 중...")
+    case_df = load_case_data()
+    print(f"  → {len(case_df):,}개 판례 로드 완료")
+
+    case_configs = build_configs_for_domain(BASE_DIR, "판례")
+    print(f"  → 설정 {len(case_configs)}개: {list(case_configs.keys())}\n")
+
+    print("  판례 kNN Purity 계산 중...")
+    case_results = run_enhanced_benchmark("판례", case_df, case_configs)
+
+    print("\n" + "=" * 65)
+    print(f"  {'설정':<28} | P@5    P@10   P@20")
+    print("=" * 65)
+    for _, row in case_results.iterrows():
+        print(f"  {row['설정']:<28} | {row['P@5']:.4f} {row['P@10']:.4f} {row['P@20']:.4f}")
+
+    case_results.to_csv(os.path.join(BASE_DIR, "07.benchmark_knn_판례.csv"), index=False, encoding="utf-8-sig")
+
+    print("\n✅ 완료! CSV 저장됨.")

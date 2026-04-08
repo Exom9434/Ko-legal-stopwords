@@ -34,7 +34,7 @@ MANUAL_GOLD_MAP = {
     16: ["docid-3044__dumpdate-20231128___jo-43"],
     17: ["docid-11377__dumpdate-20231128___jo-7"],
     18: ["docid-12010__dumpdate-20231128___jo-183"],
-    19: ["docid-9908__dumpdate-20231128___jo-212"],  # ← 18번이랑 동일, 맞는지 확인 필요
+    19: ["docid-9908__dumpdate-20231128___jo-212"], 
     20: ["docid-10022__dumpdate-20231128___jo-155"],
     21: ["docid-5653__dumpdate-20231128___jo-468"],
     22: ["docid-11476__dumpdate-20231128___jo-267"],
@@ -130,56 +130,88 @@ def _load_ngram_list(path: str) -> list:
 # [Part 2] 불용어 & n-gram 로더 (17개 설정 풀버전)
 # =============================================================================
 def build_stopword_configs(base_dir: str) -> dict:
+    # 기초 불용어 로드
     kil = load_stopwords_txt(os.path.join(base_dir, "stopwords_kil(2018).txt"))
     gen = load_stopwords_txt(os.path.join(base_dir, "stopwords.txt"))
     
     # 1. 법령 불용어 CSV 로드
     stat_dir_law = os.path.join(base_dir, "stopword_법령")
     law_a = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_A_zipf.csv"))
-    law_b = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_B_tfidf.csv"))
-    law_c = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_C_entropy.csv"))
-    law_d = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_D_pos.csv"))
+    law_b = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_B_entropy.csv"))
+    law_c = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_C_mpvp.csv"))
+    law_d = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_D_union.csv"))
     law_e = load_stopwords_csv(os.path.join(stat_dir_law, "candidates_E_intersection.csv"))
     
-    # 2. 판례 불용어 CSV 로드
-    stat_dir_case = os.path.join(base_dir, "stopword_판례")
-    case_a = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_A_zipf.csv"))
-    case_b = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_B_tfidf.csv"))
-    case_c = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_C_entropy.csv"))
-    case_d = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_D_pos.csv"))
-    case_e = load_stopwords_csv(os.path.join(stat_dir_case, "candidates_E_intersection.csv"))
-    
-    # 3. N-gram 로드
+    # 2. 법령 N-gram 로드
     ngram_law = _load_ngram_list(os.path.join(base_dir, "stopwords_ngram_법령.txt"))
-    ngram_case = _load_ngram_list(os.path.join(base_dir, "stopwords_ngram_판례.txt"))
 
-    return {
-        "00. Baseline":        {"words": set(), "ngrams": []},
-        "01. General (SW)":    {"words": gen, "ngrams": []},
-        "02. KIL Only":        {"words": kil, "ngrams": []},
-        
-        # 법령 단어 불용어 A~E 시리즈
-        "03. KIL + 법령A":       {"words": kil | law_a, "ngrams": []},
-        "04. KIL + 법령B":       {"words": kil | law_b, "ngrams": []},
-        "05. KIL + 법령C":       {"words": kil | law_c, "ngrams": []},
-        "06. KIL + 법령D":       {"words": kil | law_d, "ngrams": []},
-        "07. KIL + 법령E":       {"words": kil | law_e, "ngrams": []},
-        
-        # 판례 단어 불용어 A~E 시리즈
-        "08. KIL + 판례A":       {"words": kil | case_a, "ngrams": []},
-        "09. KIL + 판례B":       {"words": kil | case_b, "ngrams": []},
-        "10. KIL + 판례C":       {"words": kil | case_c, "ngrams": []},
-        "11. KIL + 판례D":       {"words": kil | case_d, "ngrams": []},
-        "12. KIL + 판례E":       {"words": kil | case_e, "ngrams": []},
-        
-        # N-gram 시리즈
-        "13. KIL + 법령ngram":   {"words": kil, "ngrams": ngram_law},
-        "14. KIL + 판례ngram":   {"words": kil, "ngrams": ngram_case},
-        
-        # 궁극의 결합 테스트
-        "15. KIL + 법령E + ngram": {"words": kil | law_e, "ngrams": ngram_law},
-        "16. KIL + 판례E + ngram": {"words": kil | case_e, "ngrams": ngram_case},
-    }
+    cfgs = {}
+
+    # ==========================================
+    # [그룹 0-1] 기초 및 N-gram 단독 효과 (00-07)
+    # ==========================================
+    cfgs["00. Baseline (No SW)"] = {"words": set(), "ngrams": []}
+    cfgs["01. General (SW)"]     = {"words": gen, "ngrams": []}
+    cfgs["02. KIL Only"]         = {"words": kil, "ngrams": []}
+    cfgs["03. Baseline + 법령ngram-050"] = {"words": set(), "ngrams": ngram_law[:50]}
+    cfgs["04. Baseline + 법령ngram-100"] = {"words": set(), "ngrams": ngram_law[:100]}
+    cfgs["05. Baseline + 법령ngram-150"] = {"words": set(), "ngrams": ngram_law[:150]}
+    cfgs["06. Baseline + 법령ngram-200"] = {"words": set(), "ngrams": ngram_law[:200]}
+    cfgs["07. Baseline + 법령ngram-all"] = {"words": set(), "ngrams": ngram_law}
+
+    # ==========================================
+    # [그룹 2-3] 도메인 불용어 단독 및 KIL 결합 (08-17)
+    # ==========================================
+    laws = {"A": law_a, "B": law_b, "C": law_c, "D": law_d, "E": law_e}
+    for char, sw_set in laws.items():
+        cfgs[f"08-{char}. Baseline + 법령{char}"] = {"words": sw_set, "ngrams": []}
+    for char, sw_set in laws.items():
+        cfgs[f"13-{char}. KIL + 법령{char}"]      = {"words": kil | sw_set, "ngrams": []}
+
+    # ==========================================
+    # [그룹 4-5] KIL/Baseline + N-gram 풀조합 (18-28)
+    # ==========================================
+    cfgs["18. KIL + 법령ngram"] = {"words": kil, "ngrams": ngram_law}
+    for char, sw_set in laws.items():
+        cfgs[f"19-{char}. Baseline + 법령{char} + 법령ngram"] = {"words": sw_set, "ngrams": ngram_law}
+    for char, sw_set in laws.items():
+        cfgs[f"24-{char}. KIL + 법령{char} + 법령ngram"]      = {"words": kil | sw_set, "ngrams": ngram_law}
+
+    # ==========================================
+    # [그룹 6-7] General SW 기반 대조군 (29-38)
+    # ==========================================
+    # KIL(학술용)이 아닌 일반적인 불용어를 썼을 때 도메인 불용어의 효율 측정
+    for char, sw_set in laws.items():
+        cfgs[f"29-{char}. General + 법령{char}"] = {"words": gen | sw_set, "ngrams": []}
+    for char, sw_set in laws.items():
+        cfgs[f"34-{char}. General + 법령{char} + 법령ngram"] = {"words": gen | sw_set, "ngrams": ngram_law}
+
+    # ==========================================
+    # [그룹 8] KIL + N-gram 크기별 정밀 분석 (39-42)
+    # ==========================================
+    cfgs["39. KIL + 법령ngram-050"] = {"words": kil, "ngrams": ngram_law[:50]}
+    cfgs["40. KIL + 법령ngram-100"] = {"words": kil, "ngrams": ngram_law[:100]}
+    cfgs["41. KIL + 법령ngram-150"] = {"words": kil, "ngrams": ngram_law[:150]}
+    cfgs["42. KIL + 법령ngram-200"] = {"words": kil, "ngrams": ngram_law[:200]}
+
+    # ==========================================
+    # [그룹 9] Baseline + 법령E(최적후보) + N-gram 크기별 (43-46)
+    # ==========================================
+    # KIL 없이 법령E와 N-gram 조합만으로 어디까지 성능이 나오는지 확인
+    cfgs["43. Baseline + 법령E + 법령ngram-050"] = {"words": law_e, "ngrams": ngram_law[:50]}
+    cfgs["44. Baseline + 법령E + 법령ngram-100"] = {"words": law_e, "ngrams": ngram_law[:100]}
+    cfgs["45. Baseline + 법령E + 법령ngram-150"] = {"words": law_e, "ngrams": ngram_law[:150]}
+    cfgs["46. Baseline + 법령E + 법령ngram-200"] = {"words": law_e, "ngrams": ngram_law[:200]}
+
+    # ==========================================
+    # [그룹 10] General + N-gram 크기별 (47-50)
+    # ==========================================
+    cfgs["47. General + 법령ngram-050"] = {"words": gen, "ngrams": ngram_law[:50]}
+    cfgs["48. General + 법령ngram-100"] = {"words": gen, "ngrams": ngram_law[:100]}
+    cfgs["49. General + 법령ngram-150"] = {"words": gen, "ngrams": ngram_law[:150]}
+    cfgs["50. General + 법령ngram-200"] = {"words": gen, "ngrams": ngram_law[:200]}
+
+    return cfgs
 # =============================================================================
 # [Part 3] KBL 데이터 로더 (중요: 에러 났던 함수들)
 # =============================================================================
