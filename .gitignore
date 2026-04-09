@@ -17,3 +17,4 @@ data/*/
 *.png
 *.html
 .DS_Store
+*.pt
