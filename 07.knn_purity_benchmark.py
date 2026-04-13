@@ -23,8 +23,26 @@ import matplotlib.font_manager as fm
 from sklearn.manifold import TSNE
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-warnings.filterwarnings('ignore')
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import torch
 
+warnings.filterwarnings('ignore')
+# 최적의 디바이스 자동 선택
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+elif torch.backends.mps.is_available():
+    DEVICE = "mps"
+else:
+    DEVICE = "cpu"
+
+# =============================================================================
+# 1. 모델 로드 (KURE-v1)
+# =============================================================================
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+EMB_MODEL = SentenceTransformer("nlpai-lab/KURE-v1", device=DEVICE)
+
+    
 # =============================================================================
 # 설정 (기존과 동일하되 직관적으로 정리)
 # =============================================================================
@@ -88,6 +106,30 @@ def plot_tsne(token_lists, labels, config_name, domain, out_dir):
         plt.close()
     except Exception as e:
         print(f"      ⚠️ t-SNE 에러 ({config_name}): {e}")
+
+# =============================================================================
+# 벡터 임베딩 기반 유사도 행렬 생성
+# =============================================================================
+def embedding_cosine_matrix(token_lists):
+    """
+    token_lists: 전처리된 단어 리스트들의 리스트
+    KURE-v1 모델을 사용하여 문장 임베딩 후 코사인 유사도 계산
+    """
+    # 전처리된 토큰들을 다시 문장으로 복구 (모델 입력용)
+    sentences = [" ".join(tl) for tl in token_lists]
+    
+    # 텍스트가 비어있는 경우 예외 처리
+    if not any(s.strip() for s in sentences):
+        return np.zeros((len(sentences), len(sentences)))
+
+    # 임베딩 생성 (L2 Normalization 포함)
+    embeddings = EMB_MODEL.encode(sentences, convert_to_tensor=True, show_progress_bar=False)
+    
+    # 코사인 유사도 계산 (N x N)
+    # 이미 정규화된 경우 내부적으론 dot product와 같음
+    sim_matrix = cosine_similarity(embeddings.cpu().numpy())
+    
+    return sim_matrix
 
 # =============================================================================
 # [개선] 도메인별 독립 Config 빌더 (크로스 없음, BM25와 동일한 Ablation 구조)
@@ -286,27 +328,26 @@ def run_enhanced_benchmark(dataset_name, df, configs):
     """
     sample = balanced_sample(df, "법역", N_SAMPLE, RANDOM_SEED)
     labels = sample["법역"].values
-    law_labels = sample["법령명"].values if "법령명" in sample.columns else None
-
+    
     results = []
     for name in sorted(configs.keys()):
+        print(f"  [Processing] {name}...")
         config = configs[name]
-
         token_lists = [preprocess(row["text"], config) for _, row in sample.iterrows()]
 
-        sim = jaccard_matrix(token_lists)
-        res = {"설정": name, "P@5":  round(knn_purity(sim, labels, 5),  4),
-                              "P@10": round(knn_purity(sim, labels, 10), 4),
-                              "P@20": round(knn_purity(sim, labels, 20), 4)}
-        if law_labels is not None:
-            res["법령_P@10"] = round(knn_purity(sim, law_labels, 10), 4)
+        # A. 기존 Jaccard 방식
+        sim_jaccard = jaccard_matrix(token_lists)
+        
+        # B. 신규 Embedding 방식 (KURE-v1)
+        sim_embed = embedding_cosine_matrix(token_lists)
+
+        res = {
+            "설정": name,
+            "Jaccard_P@10": round(knn_purity(sim_jaccard, labels, 10), 4),
+            "KURE_P@10":    round(knn_purity(sim_embed, labels, 10), 4), # 벡터 기반
+        }
         results.append(res)
-
-        # t-SNE: Baseline → KIL → KIL+E → KIL+E+ngram 흐름
-        if any(name.startswith(t) for t in TSNE_CONFIGS):
-            print(f"    [t-SNE] {dataset_name} - {name} 시각화 생성 중...")
-            plot_tsne(token_lists, list(labels), name, dataset_name, TSNE_DIR)
-
+        
     return pd.DataFrame(results)
 
 
