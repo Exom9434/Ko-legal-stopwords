@@ -112,24 +112,62 @@ def plot_tsne(token_lists, labels, config_name, domain, out_dir):
 # =============================================================================
 def embedding_cosine_matrix(token_lists):
     """
-    token_lists: 전처리된 단어 리스트들의 리스트
-    KURE-v1 모델을 사용하여 문장 임베딩 후 코사인 유사도 계산
+    KURE-v1 모델을 사용하되, 길이가 긴 문서는 쪼개서 임베딩 후 평균 풀링(Mean Pooling) 수행
     """
-    # 전처리된 토큰들을 다시 문장으로 복구 (모델 입력용)
     sentences = [" ".join(tl) for tl in token_lists]
-    
-    # 텍스트가 비어있는 경우 예외 처리
     if not any(s.strip() for s in sentences):
         return np.zeros((len(sentences), len(sentences)))
 
-    # 임베딩 생성 (L2 Normalization 포함)
-    embeddings = EMB_MODEL.encode(sentences, convert_to_tensor=True, show_progress_bar=False)
+    # 모델의 최대 수용 길이 확인 (보통 512)
+    max_length = EMB_MODEL.max_seq_length 
+    all_embeddings = []
+
+    for text in sentences:
+        # 1. 텍스트를 토큰화 (길이 확인용)
+        tokens = EMB_MODEL.tokenizer.tokenize(text)
+        
+        if len(tokens) <= max_length:
+            # 길이가 짧으면 바로 임베딩
+            emb = EMB_MODEL.encode(text, convert_to_tensor=True, show_progress_bar=False)
+        else:
+            # 2. 길면 max_length 단위로 쪼개기 (Chunking)
+            chunks = [tokens[i : i + max_length] for i in range(0, len(tokens), max_length)]
+            chunk_texts = [EMB_MODEL.tokenizer.convert_tokens_to_string(c) for c in chunks]
+            
+            # 3. 각 덩어리별 임베딩 후 평균(Mean) 계산
+            chunk_embs = EMB_MODEL.encode(chunk_texts, convert_to_tensor=True, show_progress_bar=False)
+            emb = torch.mean(chunk_embs, dim=0) # 이것이 '평균 풀링'
+        
+        all_embeddings.append(emb.cpu().numpy())
+
+    # 리스트를 넘파이 행렬로 변환
+    embeddings_stack = np.stack(all_embeddings)
     
-    # 코사인 유사도 계산 (N x N)
-    # 이미 정규화된 경우 내부적으론 dot product와 같음
-    sim_matrix = cosine_similarity(embeddings.cpu().numpy())
-    
+    # 4. 코사인 유사도 계산
+    sim_matrix = cosine_similarity(embeddings_stack)
     return sim_matrix
+
+# [수정] 긴 문장 대응형 임베딩 추출 함수
+def get_embeddings_chunked(sentences):
+    max_length = EMB_MODEL.max_seq_length  # 보통 512
+    all_embs = []
+    
+    for text in tqdm(sentences, desc="    Embedding Docs", leave=False):
+        # 토큰화
+        tokens = EMB_MODEL.tokenizer.tokenize(text)
+        
+        if len(tokens) <= max_length:
+            # 짧은 문장은 바로 처리
+            emb = EMB_MODEL.encode(text, convert_to_tensor=True, show_progress_bar=False)
+        else:
+            # 512 넘으면 쪼개서 평균 풀링
+            chunks = [tokens[i : i + max_length] for i in range(0, len(tokens), max_length)]
+            chunk_texts = [EMB_MODEL.tokenizer.convert_tokens_to_string(c) for c in chunks]
+            chunk_embs = EMB_MODEL.encode(chunk_texts, convert_to_tensor=True, show_progress_bar=False)
+            emb = torch.mean(chunk_embs, dim=0)
+            
+        all_embs.append(emb.cpu().numpy())
+    return np.stack(all_embs)
 
 # =============================================================================
 # [개선] 도메인별 독립 Config 빌더 (크로스 없음, BM25와 동일한 Ablation 구조)
@@ -296,107 +334,117 @@ def knn_purity(sim_matrix, labels, k):
 # =============================================================================
 DOMAIN_COLORS = {"행정일반": "#E74C3C", "민사법": "#3498DB", "형사법": "#2ECC71"}
 
-def plot_tsne(token_lists, labels, config_name, domain, out_dir):
-    docs = [" ".join(tl) for tl in token_lists]
-    if all(len(d.strip()) == 0 for d in docs): return
+# [복구] t-SNE 시각화 함수 (KURE 임베딩 기반)
+def plot_tsne(embeddings, labels, config_name, domain, out_dir):
+    try:
+        # t-SNE 연산 (임베딩 벡터 직접 입력)
+        tsne = TSNE(n_components=2, random_state=RANDOM_SEED, perplexity=30, max_iter=1000)
+        X2 = tsne.fit_transform(embeddings)
 
-    try: X = TfidfVectorizer(max_features=5000, min_df=2).fit_transform(docs).toarray()
-    except: return
-
-    X2 = TSNE(n_components=2, random_state=RANDOM_SEED, perplexity=min(30, len(docs) // 4), max_iter=1000, verbose=0).fit_transform(X)
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    for 법역명, color in DOMAIN_COLORS.items():
-        idx = [i for i, l in enumerate(labels) if l == 법역명]
-        if idx: ax.scatter(X2[idx, 0], X2[idx, 1], c=color, label=법역명, alpha=0.6, s=15, linewidths=0)
-    
-    ax.legend(loc="best", fontsize=10)
-    ax.set_title(f"t-SNE — {domain} — {config_name}", fontsize=12)
-    ax.set_xticks([]); ax.set_yticks([])
-    
-    fig.tight_layout()
-    fig.savefig(os.path.join(out_dir, f"tsne_{domain}_{config_name}.png"), dpi=150, bbox_inches="tight")
-    plt.close(fig)
+        fig, ax = plt.subplots(figsize=(9, 7))
+        for cat, color in DOMAIN_COLORS.items():
+            idx = [i for i, l in enumerate(labels) if l == cat]
+            if idx:
+                ax.scatter(X2[idx, 0], X2[idx, 1], c=color, label=cat, alpha=0.6, s=30, edgecolors='none')
+        
+        ax.set_title(f"KURE-v1 t-SNE: {domain}\n({config_name})", fontsize=13)
+        ax.legend(title="법역", bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
+        
+        save_path = os.path.join(out_dir, f"tsne_{domain}_{config_name.replace(' ', '_')}.png")
+        plt.savefig(save_path, dpi=200)
+        plt.close()
+    except Exception as e:
+        print(f"      ⚠️ t-SNE 시각화 중 에러 발생: {e}")
 
 # =============================================================================
-# [복구] t-SNE 시각화 핵심 로직
+# [복구]  시각화 핵심 로직
 # =============================================================================
+# [수정] 벤치마크 실행 함수 (P@5~20 및 t-SNE 통합)
 def run_enhanced_benchmark(dataset_name, df, configs):
-    """
-    dataset_name: '법령' or '판례'
-    configs: build_configs_for_domain()로 만든 도메인 전용 설정 (크로스 없음)
-    """
     sample = balanced_sample(df, "법역", N_SAMPLE, RANDOM_SEED)
     labels = sample["법역"].values
     
     results = []
+    # 시각화할 주요 Ablation 포인트 정의
+    visualize_targets = ["00. Baseline (No SW)", "02. KIL Only", "24-E. KIL + 법령E + ngram", "24-E. KIL + 판례E + ngram"]
+
     for name in sorted(configs.keys()):
         print(f"  [Processing] {name}...")
         config = configs[name]
         token_lists = [preprocess(row["text"], config) for _, row in sample.iterrows()]
+        sentences = [" ".join(tl) for tl in token_lists]
 
-        # A. 기존 Jaccard 방식
+        # 1. Jaccard (어휘 기반)
         sim_jaccard = jaccard_matrix(token_lists)
         
-        # B. 신규 Embedding 방식 (KURE-v1)
-        sim_embed = embedding_cosine_matrix(token_lists)
+        # 2. KURE (의미 기반 + 평균 풀링)
+        # 텍스트가 다 날아간 경우 대비
+        if not any(s.strip() for s in sentences):
+            embeddings = np.zeros((len(sentences), 768)) # 모델 히든 사이즈 기본 768
+        else:
+            embeddings = get_embeddings_chunked(sentences)
+        
+        sim_embed = cosine_similarity(embeddings)
 
-        res = {
-            "설정": name,
-            "Jaccard_P@10": round(knn_purity(sim_jaccard, labels, 10), 4),
-            "KURE_P@10":    round(knn_purity(sim_embed, labels, 10), 4), # 벡터 기반
-        }
+        # 3. 결과 기록
+        res = {"설정": name}
+        for k in [5, 10, 20]:
+            res[f"Jac_P@{k}"] = round(knn_purity(sim_jaccard, labels, k), 4)
+            res[f"KURE_P@{k}"] = round(knn_purity(sim_embed, labels, k), 4)
         results.append(res)
+
+        # 4. 특정 설정일 때 t-SNE 그리기
+        if any(target in name for target in visualize_targets):
+            print(f"    -> Generating t-SNE plot...")
+            plot_tsne(embeddings, labels, name, dataset_name, TSNE_DIR)
         
     return pd.DataFrame(results)
 
 
 # =============================================================================
-# 메인 실행
+# 메인 실행부 (Main)
 # =============================================================================
 if __name__ == "__main__":
     _setup_font()
     pd.options.display.float_format = '{:.4f}'.format
-    print("=" * 60)
-    print("  kNN Purity Ablation Study")
+    
+    # 디렉토리 생성 확인
+    if not os.path.exists(TSNE_DIR): os.makedirs(TSNE_DIR)
+
+    print("\n" + "=" * 60)
+    print("  kNN Purity & t-SNE Ablation Study")
+    print("  (Chunking + Mean Pooling Enabled)")
     print("=" * 60)
 
-    # ── 법령 벤치마크 ──────────────────────────────────────────
-    print("\n[1/2] 법령 데이터 로드 중...")
+    # 1. 법령 데이터
+    print("\n[1/2] 법령 데이터 처리 중...")
     law_df = load_law_data()
-    print(f"  → {len(law_df):,}개 조문 로드 완료")
-
     law_configs = build_configs_for_domain(BASE_DIR, "법령")
-    print(f"  → 설정 {len(law_configs)}개: {list(law_configs.keys())}\n")
-
-    print("  법령 kNN Purity 계산 중...")
     law_results = run_enhanced_benchmark("법령", law_df, law_configs)
 
-    print("\n" + "=" * 65)
-    print(f"  {'설정':<28} | P@5    P@10   P@20")
-    print("=" * 65)
+    # 결과 테이블 출력
+    print("\n" + "=" * 95)
+    print(f"  {'법령 설정':<35} | {'Jac@10':<8} {'KURE@10':<8} | {'Jac@20':<8} {'KURE@20':<8}")
+    print("-" * 95)
     for _, row in law_results.iterrows():
-        print(f"  {row['설정']:<28} | {row['P@5']:.4f} {row['P@10']:.4f} {row['P@20']:.4f}")
-
+        print(f"  {row['설정']:<35} | {row['Jac_P@10']:.4f}  {row['KURE_P@10']:.4f} | {row['Jac_P@20']:.4f}  {row['KURE_P@20']:.4f}")
+    print("=" * 95)
     law_results.to_csv(os.path.join(BASE_DIR, "07.benchmark_knn_법령.csv"), index=False, encoding="utf-8-sig")
 
-    # ── 판례 벤치마크 ──────────────────────────────────────────
-    print("\n\n[2/2] 판례 데이터 로드 중...")
+    # 2. 판례 데이터
+    print("\n\n[2/2] 판례 데이터 처리 중...")
     case_df = load_case_data()
-    print(f"  → {len(case_df):,}개 판례 로드 완료")
-
     case_configs = build_configs_for_domain(BASE_DIR, "판례")
-    print(f"  → 설정 {len(case_configs)}개: {list(case_configs.keys())}\n")
-
-    print("  판례 kNN Purity 계산 중...")
     case_results = run_enhanced_benchmark("판례", case_df, case_configs)
 
-    print("\n" + "=" * 65)
-    print(f"  {'설정':<28} | P@5    P@10   P@20")
-    print("=" * 65)
+    # 결과 테이블 출력
+    print("\n" + "=" * 95)
+    print(f"  {'판례 설정':<35} | {'Jac@10':<8} {'KURE@10':<8} | {'Jac@20':<8} {'KURE@20':<8}")
+    print("-" * 95)
     for _, row in case_results.iterrows():
-        print(f"  {row['설정']:<28} | {row['P@5']:.4f} {row['P@10']:.4f} {row['P@20']:.4f}")
-
+        print(f"  {row['설정']:<35} | {row['Jac_P@10']:.4f}  {row['KURE_P@10']:.4f} | {row['Jac_P@20']:.4f}  {row['KURE_P@20']:.4f}")
+    print("=" * 95)
     case_results.to_csv(os.path.join(BASE_DIR, "07.benchmark_knn_판례.csv"), index=False, encoding="utf-8-sig")
 
-    print("\n✅ 완료! CSV 저장됨.")
+    print(f"\n✅ 완료! 결과 CSV 및 t-SNE 이미지가 '{TSNE_DIR}'에 저장되었습니다.")
