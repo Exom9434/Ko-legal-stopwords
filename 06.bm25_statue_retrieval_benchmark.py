@@ -244,20 +244,40 @@ def build_docid_index(corpus: list[dict]) -> dict:
             index.setdefault(n, []).append(doc["id"])
     return index
 
+def normalize_law_name(text: str) -> str:
+    """법률명 비교용 정규화: 공백/중점 차이를 흡수한다."""
+    text = str(text or "")
+    text = text.replace("·", "").replace("ㆍ", "")
+    return re.sub(r"\s+", "", text)
+
+def build_law_article_index(corpus: list[dict]) -> dict:
+    """현재 statutes_local.jsonl ID 형식에서 {(법률명, 조번호): [corpus_id]} 인덱스를 만든다."""
+    index = {}
+    for doc in corpus:
+        m = re.match(r"docid-\d+__(.+)__jo-(\d+)$", doc["id"])
+        if not m:
+            continue
+        law_name = normalize_law_name(m.group(1))
+        article_no = int(m.group(2))
+        index.setdefault((law_name, article_no), []).append(doc["id"])
+    return index
+
+def parse_gold_ref(gold_ref: str):
+    """
+    예: '식품위생법 제36조1항', '형법 제232-2조', '민사소송법 제202조의2'
+    현재 코퍼스는 가지조문을 부모 jo에 합쳐 둔 경우가 많으므로 첫 번째 조 번호만 사용한다.
+    """
+    m = re.search(r"(.+?)\s*제\s*(\d+)(?:\s*(?:-|의)\s*\d+)?\s*조", str(gold_ref or ""))
+    if not m:
+        return None
+    return normalize_law_name(m.group(1)), int(m.group(2))
+
 def load_kbl_queries(kbl_dir, task, corpus):
     path = os.path.join(kbl_dir, "tasks", f"{task}.jsonl")
     if not os.path.exists(path): return []
 
-    print("  [알림] Bi-gram 기반 '포함도(Containment)' 정답 매핑을 시작합니다...")
-    
-    def get_char_bigrams(text):
-        clean = re.sub(r'[^가-힣0-9]', '', text)
-        return set(clean[i:i+2] for i in range(len(clean)-1))
-
-    # 1. 코퍼스 Bi-gram 인덱싱
-    norm_corpus = []
-    for doc in tqdm(corpus, desc="  코퍼스 Bi-gram 인덱싱 중", leave=False):
-        norm_corpus.append((doc["id"], get_char_bigrams(doc["text"])))
+    print("  [알림] gold_ref 기반 정답 ID 매핑을 시작합니다...")
+    law_article_index = build_law_article_index(corpus)
 
     queries = []
     matched, unmatched = 0, 0
@@ -267,8 +287,12 @@ def load_kbl_queries(kbl_dir, task, corpus):
             q = obj.get("query") or obj.get("question") or ""
             if not q: continue
 
-            doc_id = obj.get("doc_id")
-            gold_ids = MANUAL_GOLD_MAP.get(int(doc_id), []) if doc_id is not None else []
+            gold_key = parse_gold_ref(obj.get("gold_ref", ""))
+            gold_ids = law_article_index.get(gold_key, []) if gold_key else []
+            if gold_ids:
+                matched += 1
+            else:
+                unmatched += 1
 
             queries.append({"query": q, "gold_ids": gold_ids})
 
